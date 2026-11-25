@@ -1,0 +1,28 @@
+name: Vérification du prototype
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Récupérer le dépôt
+        uses: actions/checkout@v4
+      - name: Installer Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Vérifier la syntaxe JavaScript
+        run: node --check app.js
+      - name: Vérifier le manifeste PWA
+        run: node -e "JSON.parse(require('fs').readFileSync('manifest.webmanifest', 'utf8'))"
+      - name: Vérifier les fichiers principaux
+        run: |
+          test -s index.html
+          test -s styles.css
+          test -s app.js
+          test -s sw.js
