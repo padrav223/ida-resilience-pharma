@@ -64,7 +64,8 @@ async function seedDemoData(){
   for(const sale of sampleSales) await put("sales",sale);
   await audit("DEMO_DATA_LOADED","Pharmacie de démonstration : 24 références, lots et ventes fictifs.");
 }
-\nfunction stockFor(productId,lots){return lots.filter(l=>l.productId===productId).reduce((n,l)=>n+Number(l.quantity||0),0)}
+
+function stockFor(productId,lots){return lots.filter(l=>l.productId===productId).reduce((n,l)=>n+Number(l.quantity||0),0)}
 function lotStatus(lot){const diff=(new Date(lot.expiry+"T00:00:00")-new Date(today()+"T00:00:00"))/86400000;if(diff<0)return"Expiré";if(diff<=90)return"Échéance proche";return"Valide"}
 function render(){
 return data().then(({products,lots,sales})=>{
