@@ -17,7 +17,54 @@ function put(store,value){return new Promise((resolve,reject)=>{const tx=db.tran
 function remove(store,id){return new Promise((resolve,reject)=>{const tx=db.transaction(store,"readwrite");tx.objectStore(store).delete(id);tx.oncomplete=resolve;tx.onerror=()=>reject(tx.error)})}
 function audit(action,detail){return put("audit",{id:uid(),action,detail,at:new Date().toISOString()})}
 async function data(){const [products,lots,sales]=await Promise.all([all("products"),all("lots"),all("sales")]);return{products,lots,sales}}
-function stockFor(productId,lots){return lots.filter(l=>l.productId===productId).reduce((n,l)=>n+Number(l.quantity||0),0)}
+
+async function seedDemoData(){
+  if((await all("products")).length) return;
+  const products=[
+    ["Paracétamol 500 mg","PH-0001","Antalgique",500,20],
+    ["Paracétamol sirop 120 mg/5 ml","PH-0002","Sirop",1500,8],
+    ["Ibuprofène 200 mg","PH-0003","Antalgique",750,15],
+    ["Vitamine C 500 mg","PH-0004","Vitamines",1000,10],
+    ["Sérum physiologique 0,9 %","PH-0005","Solution",750,12],
+    ["Solution de réhydratation orale (SRO)","PH-0006","Réhydratation",500,20],
+    ["Cetirizine 10 mg","PH-0007","Antiallergique",1000,10],
+    ["Loratadine 10 mg","PH-0008","Antiallergique",1000,8],
+    ["Oméprazole 20 mg","PH-0009","Gastro-entérologie",1500,10],
+    ["Métronidazole 250 mg","PH-0010","Comprimés",1000,10],
+    ["Amoxicilline 500 mg","PH-0011","Antibiotique",2500,8],
+    ["Azithromycine 500 mg","PH-0012","Antibiotique",3500,5],
+    ["Miconazole crème 2 %","PH-0013","Dermatologie",2000,6],
+    ["Pommade antiseptique","PH-0014","Soins",1750,6],
+    ["Compresses stériles (paquet)","PH-0015","Pansements",1000,15],
+    ["Bandes extensibles","PH-0016","Pansements",750,10],
+    ["Gants d'examen (boîte)","PH-0017","Consommables",3500,5],
+    ["Masques chirurgicaux (boîte)","PH-0018","Consommables",2500,5],
+    ["Thermomètre digital","PH-0019","Matériel médical",2500,4],
+    ["Tensiomètre électronique","PH-0020","Matériel médical",18000,2],
+    ["Test de grossesse","PH-0021","Diagnostic",1000,8],
+    ["Moustiquaire imprégnée","PH-0022","Prévention",4500,4],
+    ["Gel hydroalcoolique 500 ml","PH-0023","Hygiène",2500,6],
+    ["Coton hydrophile 100 g","PH-0024","Pansements",1000,8]
+  ];
+  const suppliers=["LABOREX Mali","COPHARMA","Grossiste Pharmaceutique du Mali","Dépôt pharmaceutique Bamako"];
+  const ids=products.map((p,i)=>({id:"demo-p-"+String(i+1).padStart(3,"0"),name:p[0],code:p[1],category:p[2],price:p[3],threshold:p[4],createdAt:new Date().toISOString()}));
+  for(const p of ids) await put("products",p);
+  const todayDate=new Date(); const plusDays=n=>{const d=new Date(todayDate);d.setDate(d.getDate()+n);return d.toISOString().slice(0,10)};
+  const lots=[];
+  ids.forEach((p,i)=>{
+    const qty=[85,24,62,40,35,55,28,20,32,18,26,12,16,22,45,30,9,14,8,3,18,11,20,25][i];
+    lots.push({id:"demo-lot-a-"+(i+1),productId:p.id,batch:"ML"+(2601+i)+"A",quantity:qty,expiry:plusDays(i===2?35:i===10?68:180+(i*7)),cost:Math.round(p.price*.62),supplier:suppliers[i%suppliers.length],createdAt:new Date().toISOString()});
+    if(i%3===0) lots.push({id:"demo-lot-b-"+(i+1),productId:p.id,batch:"ML"+(2509+i)+"B",quantity:Math.max(4,Math.round(qty*.35)),expiry:plusDays(300+i*5),cost:Math.round(p.price*.58),supplier:suppliers[(i+1)%suppliers.length],createdAt:new Date().toISOString()});
+  });
+  for(const lot of lots) await put("lots",lot);
+  const sampleSales=[
+    {id:"demo-sale-001",reference:"PH-DEMO-001",date:new Date().toISOString(),items:[{productId:ids[0].id,name:ids[0].name,quantity:2,unitPrice:ids[0].price,lineTotal:ids[0].price*2},{productId:ids[3].id,name:ids[3].name,quantity:1,unitPrice:ids[3].price,lineTotal:ids[3].price}],total:2000,payment:"Espèces"},
+    {id:"demo-sale-002",reference:"PH-DEMO-002",date:new Date(Date.now()-86400000).toISOString(),items:[{productId:ids[14].id,name:ids[14].name,quantity:1,unitPrice:ids[14].price,lineTotal:ids[14].price}],total:ids[14].price,payment:"Mobile money (saisi)"}
+  ];
+  for(const sale of sampleSales) await put("sales",sale);
+  await audit("DEMO_DATA_LOADED","Pharmacie de démonstration : 24 références, lots et ventes fictifs.");
+}
+\nfunction stockFor(productId,lots){return lots.filter(l=>l.productId===productId).reduce((n,l)=>n+Number(l.quantity||0),0)}
 function lotStatus(lot){const diff=(new Date(lot.expiry+"T00:00:00")-new Date(today()+"T00:00:00"))/86400000;if(diff<0)return"Expiré";if(diff<=90)return"Échéance proche";return"Valide"}
 function render(){
 return data().then(({products,lots,sales})=>{
@@ -59,6 +106,6 @@ $("exportBackup").addEventListener("click",async()=>{const payload={format:"IDA-
 $("importBackup").addEventListener("change",async e=>{const file=e.target.files[0];if(!file)return;try{const payload=JSON.parse(await file.text());if(payload.format!=="IDA-RESILIENCE-PHARMA"||![payload.products,payload.lots,payload.sales,payload.audit].every(Array.isArray))throw Error("Format de sauvegarde non reconnu.");if(!confirm("Cette restauration remplacera toutes les données locales actuelles. Continuer ?"))return;const tx=db.transaction(["products","lots","sales","audit"],"readwrite");for(const store of ["products","lots","sales","audit"]){const os=tx.objectStore(store);os.clear();payload[store].forEach(item=>os.put(item))}tx.oncomplete=()=>{cart=[];notify("Sauvegarde restaurée.");render()};tx.onerror=()=>notify("Échec de restauration.");}catch(err){notify(err.message||"Fichier illisible.")}finally{e.target.value=""}});
 function connection(){const offline=!navigator.onLine;$("connectionText").textContent=offline?"Hors connexion":"Connectivité disponible";$("connectionDot").parentElement.classList.toggle("offline",offline)}
 window.addEventListener("online",connection);window.addEventListener("offline",connection);
-async function start(){try{if(!("indexedDB"in window))throw Error("IndexedDB indisponible sur ce navigateur.");db=await openDB();connection();if("serviceWorker"in navigator)navigator.serviceWorker.register("./sw.js").catch(()=>{});await render()}catch(err){notify("Démarrage impossible : "+err.message)}}
+async function start(){try{if(!("indexedDB"in window))throw Error("IndexedDB indisponible sur ce navigateur.");db=await openDB();await seedDemoData();connection();if("serviceWorker"in navigator)navigator.serviceWorker.register("./sw.js").catch(()=>{});await render()}catch(err){notify("Démarrage impossible : "+err.message)}}
 start();
 })();
