@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#123c32">
+  <meta name="description" content="IDA RESILIENCE PHARMA — gestion de pharmacie conçue pour fonctionner hors connexion.">
+  <title>IDA RESILIENCE PHARMA</title>
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand-mark">IDA</div>
+    <div class="brand-copy"><strong>RESILIENCE PHARMA</strong><small>Gestion locale • hors connexion</small></div>
+    <div class="connection"><span id="connectionDot"></span><span id="connectionText">Mode local</span></div>
+  </header>
+  <div class="shell">
+    <aside class="sidebar">
+      <div class="side-label">ESPACE PHARMACIE</div>
+      <button class="nav active" data-view="dashboard">▦ <span>Tableau de bord</span></button>
+      <button class="nav" data-view="products">▤ <span>Produits & lots</span></button>
+      <button class="nav" data-view="sales">＋ <span>Nouvelle vente</span></button>
+      <button class="nav" data-view="history">◷ <span>Historique</span></button>
+      <button class="nav" data-view="backup">↧ <span>Sauvegarde</span></button>
+      <div class="sidebar-note"><strong>Vos données restent ici.</strong><p>Cette première version enregistre les opérations sur cet appareil. Exportez régulièrement une sauvegarde.</p></div>
+      <small class="version">IDA RESILIENCE PHARMA · V0.1</small>
+    </aside>
+    <main class="main">
+      <section id="view-dashboard" class="view active">
+        <div class="page-heading"><div><p class="eyebrow">VUE D'ENSEMBLE</p><h1>Tableau de bord</h1><p class="muted">Suivez l'activité de votre pharmacie, même sans Internet.</p></div><span class="date-chip" id="todayLabel"></span></div>
+        <div class="stats">
+          <article class="stat"><span>Produits enregistrés</span><strong id="statProducts">0</strong><small>Références au catalogue</small></article>
+          <article class="stat"><span>Unités en stock</span><strong id="statStock">0</strong><small>Tous lots confondus</small></article>
+          <article class="stat"><span>Ventes du jour</span><strong id="statSales">0 FCFA</strong><small id="statSalesCount">0 transaction</small></article>
+          <article class="stat warning"><span>Lots à surveiller</span><strong id="statAlerts">0</strong><small>Expirés ou bientôt expirés</small></article>
+        </div>
+        <div class="content-grid">
+          <article class="panel"><div class="panel-head"><div><h2>Alertes de péremption</h2><p>Lots expirés ou arrivant à échéance dans 90 jours</p></div><button class="text-button" data-go="products">Voir le stock →</button></div><div id="expiryList" class="empty">Aucune alerte pour le moment.</div></article>
+          <article class="panel"><div class="panel-head"><div><h2>Dernières ventes</h2><p>Activité récente enregistrée sur cet appareil</p></div><button class="text-button" data-go="history">Tout voir →</button></div><div id="recentSales" class="empty">Aucune vente enregistrée.</div></article>
+        </div>
+        <div class="notice"><strong>Important — version de démarrage</strong><p>Cette V0.1 est un prototype local pour tester les parcours. Elle n'inclut pas encore les comptes utilisateurs, le serveur multi-postes, le chiffrement ni une APK Android de production. Ne l'utilisez pas comme système unique de gestion d'une pharmacie réelle.</p></div>
+      </section>
+      <section id="view-products" class="view">
+        <div class="page-heading"><div><p class="eyebrow">INVENTAIRE</p><h1>Produits & lots</h1><p class="muted">Enregistrez les références et suivez chaque lot séparément.</p></div><button class="primary" id="showProductForm">＋ Ajouter un produit</button></div>
+        <div id="productFormWrap" class="panel form-panel hidden">
+          <div class="panel-head"><div><h2>Nouveau produit</h2><p>Créez une référence dans le catalogue.</p></div><button class="icon-button" id="closeProductForm" aria-label="Fermer">✕</button></div>
+          <form id="productForm" class="form-grid">
+            <label class="wide">Nom du produit<input name="name" required maxlength="100" placeholder="Ex. Paracétamol 500 mg"></label>
+            <label>Code / code-barres<input name="code" maxlength="60" placeholder="Facultatif"></label>
+            <label>Catégorie<input name="category" maxlength="60" placeholder="Ex. Comprimés"></label>
+            <label>Prix de vente (FCFA)<input name="price" type="number" min="0" step="1" required></label>
+            <label>Seuil d'alerte (unités)<input name="threshold" type="number" min="0" step="1" value="5"></label>
+            <div class="wide form-actions"><button class="primary" type="submit">Enregistrer le produit</button><button class="secondary" type="button" id="cancelProductForm">Annuler</button></div>
+          </form>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><div><h2>Catalogue et disponibilité</h2><p>Le stock est calculé à partir des quantités de chaque lot.</p></div><input id="productSearch" class="search" placeholder="Rechercher un produit…"></div>
+          <div class="table-wrap"><table><thead><tr><th>Produit</th><th>Code</th><th>Prix vente</th><th>Stock</th><th>État</th><th></th></tr></thead><tbody id="productRows"><tr><td colspan="6" class="empty">Aucun produit. Ajoutez votre première référence.</td></tr></tbody></table></div>
+        </div>
+        <div class="panel">
+          <div class="panel-head"><div><h2>Ajouter un lot</h2><p>Chaque livraison doit être enregistrée avec sa date de péremption.</p></div></div>
+          <form id="lotForm" class="form-grid">
+            <label class="wide">Produit<select name="productId" id="lotProduct" required><option value="">Choisir un produit</option></select></label>
+            <label>Numéro de lot<input name="batch" required maxlength="60" placeholder="N° de lot"></label>
+            <label>Quantité reçue<input name="quantity" type="number" min="1" step="1" required></label>
+            <label>Date de péremption<input name="expiry" type="date" required></label>
+            <label>Prix d'achat unitaire (FCFA)<input name="cost" type="number" min="0" step="1" value="0"></label>
+            <label class="wide">Fournisseur<input name="supplier" maxlength="100" placeholder="Nom du fournisseur (facultatif)"></label>
+            <div class="wide form-actions"><button class="primary" type="submit">Ajouter le lot au stock</button></div>
+          </form>
+        </div>
+      </section>
+      <section id="view-sales" class="view">
+        <div class="page-heading"><div><p class="eyebrow">COMPTOIR</p><h1>Nouvelle vente</h1><p class="muted">La sortie est répartie automatiquement sur les lots selon FEFO.</p></div><span class="offline-pill">● Enregistrement local</span></div>
+        <div class="content-grid sale-grid">
+          <article class="panel"><div class="panel-head"><div><h2>Ajouter au panier</h2><p>Choisissez un produit disponible.</p></div></div>
+            <form id="saleForm" class="form-grid">
+              <label class="wide">Produit<select id="saleProduct" name="productId" required><option value="">Choisir un produit</option></select></label>
+              <label>Quantité<input name="quantity" type="number" min="1" step="1" value="1" required></label>
+              <div class="field-info" id="saleAvailability">Stock disponible : —</div>
+              <div class="wide form-actions"><button class="primary" type="submit">Ajouter au panier</button></div>
+            </form>
+          </article>
+          <article class="panel"><div class="panel-head"><div><h2>Panier</h2><p>Vérifiez les quantités avant validation.</p></div><button id="clearCart" class="text-button">Vider</button></div>
+            <div id="cartRows" class="empty">Votre panier est vide.</div>
+            <div class="total-line"><span>Total à payer</span><strong id="cartTotal">0 FCFA</strong></div>
+            <label class="payment-label">Mode de règlement<select id="paymentMethod"><option value="Espèces">Espèces</option><option value="Mobile money (saisi)">Mobile money (saisi)</option><option value="Carte">Carte</option><option value="Autre">Autre</option></select></label>
+            <button id="completeSale" class="primary full" disabled>Valider la vente</button>
+            <p class="microcopy">La validation met à jour les quantités locales. Le règlement mobile money n'est pas vérifié auprès de l'opérateur.</p>
+          </article>
+        </div>
+      </section>
+      <section id="view-history" class="view">
+        <div class="page-heading"><div><p class="eyebrow">JOURNAL</p><h1>Historique des ventes</h1><p class="muted">Transactions conservées sur cet appareil.</p></div></div>
+        <div class="panel"><div class="panel-head"><div><h2>Transactions</h2><p>Les opérations validées ne sont pas supprimées depuis cette interface.</p></div></div><div class="table-wrap"><table><thead><tr><th>Date</th><th>Référence</th><th>Articles</th><th>Règlement</th><th>Total</th></tr></thead><tbody id="historyRows"><tr><td colspan="5" class="empty">Aucune vente.</td></tr></tbody></table></div></div>
+      </section>
+      <section id="view-backup" class="view">
+        <div class="page-heading"><div><p class="eyebrow">PROTECTION DES DONNÉES</p><h1>Sauvegarde & restauration</h1><p class="muted">Gardez une copie de vos données en lieu sûr.</p></div></div>
+        <div class="content-grid">
+          <article class="panel"><div class="backup-icon">↧</div><h2>Exporter une sauvegarde</h2><p class="muted">Télécharge un fichier JSON contenant les produits, lots, ventes et le journal local.</p><button class="primary" id="exportBackup">Télécharger la sauvegarde</button></article>
+          <article class="panel"><div class="backup-icon">↥</div><h2>Restaurer une sauvegarde</h2><p class="muted">Remplace les données actuelles par celles du fichier choisi. Faites d'abord un export de sécurité.</p><label class="file-button">Choisir un fichier JSON<input type="file" id="importBackup" accept="application/json"></label></article>
+        </div>
+        <div class="notice"><strong>Conseil</strong><p>Copiez les sauvegardes sur un support distinct. Dans cette version, le fichier exporté n'est pas chiffré : protégez-le comme un document confidentiel.</p></div>
+      </section>
+      <footer>IDA RESILIENCE PHARMA <span>Une solution pensée pour continuer, même sans réseau.</span></footer>
+    </main>
+  </div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="./app.js"></script>
+</body>
+</html>
